@@ -71,7 +71,7 @@ grad = copy(dfpardvpar[abs.(E) .< 200, :, :])
 v = v_middle[abs.(E) .< 200]
 E    = E_ev(v, me)
 
-grad[abs.(E) .< 3, :, :] .= 0
+grad[abs.(E) .< 3, :, :] .= NaN
 fig, ax, hm = heatmap(E, h_atm/1e3, grad[:, :, it], colorrange = (-1e20, 1e20),)
 xlims!(-200, 200)
 Colorbar(fig[1, 2], hm)
@@ -102,20 +102,45 @@ function plasma_freq(ne, qe, m_kg)
     return sqrt(ne*qe^2 / ( m_kg * eps0 ))
 end
 
+function thermal_velocity(T, m)
+    kb = 1.38064e-23 #m2 kg s-2 K-1
+    return sqrt(2*kb*T/m)
+end
+
+
 guisdap_dir = "analyzed_parameters/2018-12-07_folke_6.4@42mb"
 files = filter(x -> x[end-3:end] == ".mat", readdir(guisdap_dir))
 file = files[1]
 guisdap_data = matread(joinpath(guisdap_dir, file))
-ne = guisdap_data["r_pp"]
-h_ne = guisdap_data["r_pprange"]
+ne = guisdap_data["r_param"][:, 1]
+Ti = guisdap_data["r_param"][:, 2]
+TeTi = guisdap_data["r_param"][:, 3]
+Te = TeTi .* Ti
+h_ne = dropdims(guisdap_data["r_h"], dims = 2)*1000
 ex_time = guisdap_data["r_time"]
 t_start = ex_time[1, :]
 t_end = ex_time[2, :]
 
-wp = plasma_freq(ne[1], qe, me_kg)
-vth = 1200 #m/s
 
-k = -200e3:200e3
+ih = 25
+
+wp = plasma_freq(ne[ih], qe, me_kg)
+vth = thermal_velocity.(Te, me_kg)
+
+vth = vth[ih]
+
+k = -2000:2000
 lines(k, k*vmax)
-lines!(k, sqrt.(wp^2 .+ 3*vth^2*k.^2))
+lines!(k, sqrt.(wp^2 .+ 3/2*vth.^2*k.^2))
 
+#solve for k and omega
+#k^2 vmax^2 .- 3/2*vth.^2*k.^2 3/2 = wp^2
+#k^2 = wp^2 / (vmax^2 .- 3/2*vth.^2)
+k_growth = wp / sqrt(vmax^2 - 3/2*vth^2)
+w_growth = k_growth * vmax
+
+#growth rate!
+double check!!
+gamma = pi * wp^2 / k_growth^2 * dfdvmax
+
+#check with iescat wavenumber
