@@ -4,7 +4,7 @@ function gradient_simple(x, y)
     # simple nearest neighbour gradient for 
     # arguments: x: independent variable data points, y = f(x) with df/dx being the gradient
     # output: df/dx at the middle points between x
-    gradient = diff(f) ./ diff(x)
+    gradient = diff(y) ./ diff(x)
     x_middle = x[1:end-1] + diff(x)/2
     return x_middle, gradient
 end
