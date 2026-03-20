@@ -27,8 +27,23 @@ function average_guisdap(files, mode = "median")
 
     nh = maximum([size(m.h_param, 1) for m in gd])
 
-    #for key in keys(gd[1])
+
+    """
+    gd_new = NamedTuple()
+
+    for key in keys(gd[1])
     # make loop for all keys in gd, as all data is processed the same way
+        if key == :Symbol(:ex_time) continue end
+        stacked_k = stack(rpad_array.([m.key for m in gd], nh, NaN))
+        median_k  = [median(filter_nan(row)) for row in eachrow(stacked)]
+        #mean_k   = [mean(filter_nan(row))   for row in eachrow(stacked)]
+        mad_k     = [mad(filter_nan(row))    for row in eachrow(stacked)]
+        #mad_k     = [mad(filter_nan(row), center = mean(filter_nan(row))) for row in eachrow(stacked)]
+        gd_new(key) = median_k
+
+    end
+    """
+
 
     h_mat = stack(rpad_array.([m.h_param for m in gd], nh, NaN))
     ne_mat = stack(rpad_array.([m.ne for m in gd], nh, NaN))
@@ -42,7 +57,7 @@ function average_guisdap(files, mode = "median")
         h_mad  = [mad(row[.!isnan.(row)]) for row in eachrow(h_mat)]
         ne_mad = [mad(row[.!isnan.(row)]) for row in eachrow(ne_mat)]
         Te_mad = [mad(row[.!isnan.(row)]) for row in eachrow(Te_mat)]
-        return h_median, ne_median, Te_median, h_mad, ne_mad, Te_mad
+        return t_start, t_end, h_median, ne_median, Te_median, h_mad, ne_mad, Te_mad
     elseif mode == "mean"
         h_mean  = [mean(row[.!isnan.(row)]) for row in eachrow(h_mat)]
         ne_mean = [mean(row[.!isnan.(row)]) for row in eachrow(ne_mat)]
@@ -52,7 +67,7 @@ function average_guisdap(files, mode = "median")
         ne_mad = [mad(row[.!isnan.(row)], center = mean(row[.!isnan.(row)])) for row in eachrow(ne_mat)]
         Te_mad = [mad(row[.!isnan.(row)], center = mean(row[.!isnan.(row)])) for row in eachrow(Te_mat)]
 
-        return h_mean, ne_mean, Te_mean, h_mad, ne_mad, Te_mad
+        return t_start, t_end, h_mean, ne_mean, Te_mean, h_mad, ne_mad, Te_mad
     end
 end
 
@@ -65,5 +80,6 @@ function rpad_array(arr, length, value)
 end
 
 function filter_nan(arr)
-    return arr[.!isnan.(arr)]
+    arr_filtered = arr[.!isnan.(arr)]
+    return arr_filtered
 end

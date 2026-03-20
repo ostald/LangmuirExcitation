@@ -4,6 +4,7 @@ using Peaks
 using GLMakie #, MakieExtra
 #using Makie
 
+include("load_guisdap.jl")
 include("utils.jl")
 include("constants.jl")
 c = physical_constants
@@ -82,75 +83,51 @@ E_ev(vmax, c.me_ev)
 #load guisdap data
 guisdap_dir = "analyzed_parameters/2018-12-07_folke_6.4@42mb"
 files = filter(x -> x[end-3:end] == ".mat", readdir(guisdap_dir))
-file = files[290]
 
+interval1 = 143:161
+interval2 = 292:310
+interval3 = 246:264
+
+load_files = files[interval1]
+
+"""
+file = files[290]
 ex_time, h_param, ne, Te = load_guisdap(joinpath(guisdap_dir, file))
 println(ex_time)
 #t_start = ex_time[1, :]
 #t_end = ex_time[2, :]
 
 if showplots
-    lines(ne, h_ne/1e3)
+    lines(ne, h_param/1e3)
 end
+"""
 
-h_median, ne_median, Te_median, h_mad, ne_mad, Te_mad = average_guisdap(joinpath.(guisdap_dir, files[290:292]))
-
-gd = load_guisdap.(joinpath.(guisdap_dir, files[290:292]))
-n_files = size(gd, 1)
-t_start = gd[1].ex_time[1, :]
-t_end = gd[end].ex_time[end, :]
-interval = t_end - t_start
-
-nh = maximum([size(m.h_param, 1) for m in gd])
-
-h_mat = stack(rpad_array.([m.h_param for m in gd], nh, NaN))
-h_mean  = [mean(row[.!isnan.(row)]) for row in eachrow(h_mat)]
-h_median = [median(row[.!isnan.(row)]) for row in eachrow(h_mat)]
-
-ne_mat = stack(rpad_array.([m.ne for m in gd], nh, NaN))
-ne_mean  = [mean(row[.!isnan.(row)]) for row in eachrow(ne_mat)]
-ne_median = [median(row[.!isnan.(row)]) for row in eachrow(ne_mat)]
-
-Te_mat = stack(rpad_array.([m.Te for m in gd], nh, NaN))
-Te_mean  = [mean(row[.!isnan.(row)]) for row in eachrow(Te_mat)]
-Te_median = [median(row[.!isnan.(row)]) for row in eachrow(Te_mat)]
-
-h_mad  = [mad(row[.!isnan.(row)]) for row in eachrow(h_mat)]
-ne_mad = [mad(row[.!isnan.(row)]) for row in eachrow(ne_mat)]
-Te_mad = [mad(row[.!isnan.(row)]) for row in eachrow(Te_mat)]
-
-h_mad2  = [mad(row[.!isnan.(row)], center = mean(row[.!isnan.(row)])) for row in eachrow(h_mat)]
-ne_mad2 = [mad(row[.!isnan.(row)], center = mean(row[.!isnan.(row)])) for row in eachrow(ne_mat)]
-Te_mad2 = [mad(row[.!isnan.(row)], center = mean(row[.!isnan.(row)])) for row in eachrow(Te_mat)]
-
-ne_mad[(ne_median .- ne_mad) .< 0] .= ne_median[(ne_median .- ne_mad) .< 0] ./ 10
-#ne_mad2[(ne_mean .- ne_mad) .< 0] .= ne_mean[(ne_mean .- ne_mad) .< 0] ./ 10
-
+# 3 different time intervals to try out:
+t_start, t_end, h_median, ne_median, Te_median, h_mad, ne_mad, Te_mad = 
+    average_guisdap(joinpath.(guisdap_dir, load_files))
+gd = load_guisdap.(joinpath.(guisdap_dir, load_files))
 
 if showplots
-    fig, ax, lin = scatterlines(ne_mean, h_mean/1e3, 
+    ne_mad_lower = copy(ne_mad)
+    ne_mad_lower[(ne_median - ne_mad) .< 0] .= ne_median[(ne_median - ne_mad) .< 0] ./10
+    fig, ax, lin = scatterlines(ne_median, h_median/1e3, 
         marker = 'x', 
-        label = "mean",
+        label = "median",
         axis = (xscale = log10, limits = ((1e6, 2e12), nothing)
     ),
     )
-    #errorbars!(ne_mean, h_mean/1e3, ne_mad2, direction = :x; color = :green) # same low and high error
-    scatterlines!(ne_median, h_median/1e3, marker = 'x')
-    errorbars!(ne_median, h_median/1e3, ne_mad, direction = :x; color = :red) # same low and high error
+    errorbars!(ne_median, h_median/1e3, ne_mad_lower, ne_mad, direction = :x; color = :red) # same low and high error
     for m in gd
-        scatter!(m.ne, m.h_param/1e3, #color = "black", alpha = 0.2
+        scatter!(m.ne, m.h_param/1e3, color = "black", alpha = 0.3
         )
     end
-    scatter!(gd[2].ne, gd[2].h_param/1e3, color = "black")
-    #xlims!(1e6, 1e12)
-    #xscale(log10)
     axislegend(ax)
     display(fig)
 end
 
 ih = 25
 
-wp = plasma_freq(ne[ih], c.me)
+wp = plasma_freq(ne_median[ih], c.me)
 vth = thermal_velocity.(Te, c.me)
 
 vth = vth[ih]
