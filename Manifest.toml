@@ -2,7 +2,7 @@
 
 julia_version = "1.11.4"
 manifest_format = "2.0"
-project_hash = "d0ce09c9d247cb7d339df590359f2d8d0efce106"
+project_hash = "71e656cc6a58a2cfff246bcc4b3ecb7ffb8f428a"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1247,6 +1247,15 @@ version = "1.6.1+0"
 git-tree-sha1 = "05868e21324cede2207c6f0f466b4bfef6d5e7ee"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.8.1"
+
+[[deps.PCHIPInterpolation]]
+git-tree-sha1 = "fa9c9839789b203e99580cd09c212df78f883562"
+uuid = "afe20452-48d1-4729-9a8b-50fb251f06cd"
+version = "0.2.1"
+weakdeps = ["RecipesBase"]
+
+    [deps.PCHIPInterpolation.extensions]
+    PCHIPInterpolationRecipesBaseExt = "RecipesBase"
 
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
