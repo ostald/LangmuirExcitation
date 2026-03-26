@@ -10,7 +10,7 @@ include("utils.jl")
 include("constants.jl")
 c = physical_constants
 
-showplots = true
+showplots = false
 
 #load guisdap data
 guisdap_dir = "analyzed_parameters/2018-12-07_folke_6.4@42mb"
@@ -21,7 +21,10 @@ interval1 = 143:161
 interval2 = 292:310
 interval3 = 246:264
 
-load_files = files[interval3]
+#for interval in [interval1, interval2, interval3]
+
+interval = interval2
+load_files = files[interval]
 
 if showplots
     file = files[290]
@@ -102,6 +105,7 @@ for psd_f in psd_files
         )
     #println(keys(psd))
 
+    showplots = false
     if showplots
         fig, ax, hm = heatmap(psd.vpar_centres, psd.h_atm/1e3, psd.F[:, :, 50], 
             colorscale = log10,
@@ -236,7 +240,7 @@ for psd_f in psd_files
         #E_mat = stack(rpad_array.(E_profiles, nmax, NaN))
         k_g = wp ./ sqrt.(v_mat.^2 .- 3/2*vth .^2)
         k_growth[it] = k_g
-        w_g = k_g .* vmax
+        w_g = k_g .* v_mat
         gamma[it] = pi * wp .^2 ./ k_g .^2 .* dfdvm_mat
     end
 
@@ -248,9 +252,14 @@ for psd_f in psd_files
     if !isdir(joinpath(psd_dir, "LE"))
         mkdir(joinpath(psd_dir, "LE"))
     end
-    matwrite(joinpath(psd_dir, "LE", psd_f[1:end-4]*"_LE.mat"), psd_data)
-end
 
+    if !isdir(joinpath(psd_dir, "LE", string(interval)))
+        mkdir(joinpath(psd_dir, "LE", string(interval)))
+    end
+
+    matwrite(joinpath(psd_dir, "LE", string(interval), psd_f[1:end-4]*"_LE.mat"), psd_data)
+end
+end
 """
 it = 1:60 per file:     done
 ih= 1:406               done
