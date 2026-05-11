@@ -27,7 +27,7 @@ tplot = zeros(nfiles*nt)*NaN;
 h_atm = psd.h_atm
 
 
-#if !isfile(res_file)
+if !isfile(res_file)
     for (ifile, psd_file) in enumerate(psd_files)
         #psd_file = "psd-60_LE.mat"
         #ifile = 6
@@ -63,7 +63,7 @@ io = open(res_file, "r")
 tplot, h_atm, kmat = deserialize(io)
 close(io)
 
-kmat[kmat .< klim] .= NaN
+kmat[kmat .< klim/2] .= NaN
 tmat = ones(size(kmat)) .* tplot;
 hmat = permutedims(permutedims(ones(size(kmat)), (2, 1, 3)) .* h_atm, (2, 1, 3));
 
@@ -100,27 +100,28 @@ Colorbar(fig[1, 2], hm, label = "k [m⁻¹]")
 fig, ax, hm = heatmap(tplot, 
     h_atm/1e3, 
     dropdims(maximum(abs.(kmat), dims = 3), dims = 3),
-    colorrange = (klim, maximum(kmat[:])),
+    colorrange = (klim/2, maximum(kmat[:])),
+    lowclip = "white",
     axis = (xlabel = "Time [s]",
     ylabel = "Height [km]"),
     )
 Colorbar(fig[1, 2], hm, label = "k [m⁻¹]", )
 
 ##
-    for i in 1:10
-        ax.azimuth = pi*0.98 + i/100
+    for i in 1:100
+        ax.azimuth = pi*0.98 + i/1000
         sleep(0.01)
     end
 
 
-    for _ in 1:2
-        for i in 1:100
+    for _ in 1:1
+        for i in 1:10
             ax.azimuth = pi*0.98 + i/100
-            sleep(0.01)
+            sleep(0.05)
         end
-        for i in 1:100
-            ax.azimuth = pi*0.98 + 1 - i/100
-            sleep(0.01)
+        for i in 1:10
+            ax.azimuth = pi*0.98 + 0.1 - i/100
+            sleep(0.05)
         end
     end
 
