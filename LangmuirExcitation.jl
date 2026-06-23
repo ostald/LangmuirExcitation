@@ -12,11 +12,11 @@ c = physical_constants
 
 showplots = false
 
-#define psd files
+#define psd files (AURORA now writes netCDF psd.nc files)
 psd_dir = "AlfvenTrainPSD/PSD/psd"
-psd_files = filter(x-> contains(x, ".mat"), readdir(psd_dir))
+psd_files = filter(x-> endswith(x, ".nc"), readdir(psd_dir))
 #load example psd file for DataInterpolation
-h_atm = matread(joinpath(psd_dir, psd_files[1]))["h_atm"]
+h_atm = load_psd(joinpath(psd_dir, psd_files[1]))["h_atm"]
 
 
 #load guisdap data
@@ -101,9 +101,9 @@ for interval in [interval1, interval2, interval3]
     for psd_f in psd_files
         println("Processing ", psd_f)
         psd_file = joinpath(psd_dir, psd_f)
-        #psd_file = "Afven Train PSB/psd/psd-30.mat"
-        # Load the .mat file
-        psd_data = matread(psd_file)
+        #psd_file = "Afven Train PSB/psd/psd-30.nc"
+        # Load the netCDF psd file
+        psd_data = load_psd(psd_file)
 
         # Convert psd_data into a named tuple
         psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data)
@@ -262,7 +262,7 @@ for interval in [interval1, interval2, interval3]
             mkdir(joinpath(psd_dir, "LE", string(interval)))
         end
 
-        matwrite(joinpath(psd_dir, "LE", string(interval), psd_f[1:end-4]*"_LE.mat"), psd_data)
+        matwrite(joinpath(psd_dir, "LE", string(interval), first(splitext(psd_f))*"_LE.mat"), psd_data)
     end
 end
 """
