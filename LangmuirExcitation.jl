@@ -318,9 +318,13 @@ interval3 = 246:264
 
     # save results in struct for easy saving
     # (not used with nc files)
+    psd_data["v"] = v
     psd_data["k_growth"] = k_growth
     psd_data["v_dfdvmax"] = v_dfdvmax
-    psd_data["growth_rate"] = gamma_dfdvmax
+    psd_data["gamma_dfdvmax"] = gamma_dfdvmax
+    psd_data["iv_dfdvmax"] = iv_dfdvmax
+    psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data))
+
     #psd_data
 
 
@@ -350,8 +354,7 @@ interval3 = 246:264
         attrib=["units" => "m-2 s-1 (?)", "long_name" => "growth rate"])
     v_gamma_dfdvmax[:] = gamma_dfdvmax[:]
 
-    defVar(ds, "iv_dfdvmax_", iv_dfdvmax, ("vpar_grad_red", "altitude", "time"),)
-    v_iv_dfdvmax_ = defVar(ds, "i_dfdvmax_", Float64, ("vpar_grad_red", "altitude", "time"),
+    v_iv_dfdvmax_ = defVar(ds, "iv_dfdvmax", Float64, ("vpar_grad_red", "altitude", "time"),
         attrib=["long_name" => "index of maximum dF_par/dv_par"])
     v_iv_dfdvmax_[:] = iv_dfdvmax[:]
 

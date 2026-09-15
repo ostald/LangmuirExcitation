@@ -1,67 +1,39 @@
 using WGLMakie
 using MAT
 using Serialization
+include("utils.jl")
 
 klim = (224e6 * 2 *pi)/3e8 *2
 
-dir = "AlfvenTrainPSD/PSD/psd/LE/143:161"
-res_file = joinpath(dir, "kmat.bin")
-psd_files = readdir(dir)
-psd_files = filter(x-> contains(x, ".mat"), psd_files)
-# Sort files numerically by extracting the number from filenames
-psd_files = sort(psd_files, by = x -> parse(Int, match(r"psd-(\d+)", x).captures[1]))
+dir = "results/143:161"
+res_file = joinpath(dir, "psd_le.nc")
 
-#load sample
-psd_data = matread(joinpath(dir, psd_files[1]))
-psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data)
-    )
-
-
-psd_files = psd_files
-
-nfiles = length(psd_files)
-nt = length(psd.t_run)
-nh = length(psd.h_atm)
-kmat = zeros(nfiles*nt, nh, 10)*NaN;
-tplot = zeros(nfiles*nt)*NaN;
-h_atm = psd.h_atm
-
-
-if !isfile(res_file)
-    for (ifile, psd_file) in enumerate(psd_files)
-        #psd_file = "psd-60_LE.mat"
-        #ifile = 6
-        println("Processing ", psd_file)
-        #psd_file = joinpath(psd_dir, psd_f)
-
-        # Load the .mat file
-        psd_data = matread(joinpath(dir, psd_file))
-
-        # Convert psd_data into a named tuple
-        psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data)
-            )
-        #println(keys(psd))
-
-        psd.t_run
-        psd.h_atm
-        psd.k_growth
-
-        tplot[(ifile-1)*nt + 1:(ifile)*nt] = psd.t_run
-
-        for it in axes(psd.t_run, 1)
-            #it = 60
-            kmat[(ifile-1)*nt + it, axes(psd.k_growth[it])...] = psd.k_growth[it]
-        end
+@time psd_data = NCDataset(res_file, "r") do ds
+        Dict{String, Any}(
+            "h_atm"        => Array(ds["altitude"]),
+            "t_run"        => Array(ds["time"]),
+            #"vpar_centers" => Array(ds["vpar_centers"]),
+            #"vpar_edges"   => Array(ds["vpar_edges"]),
+            #"F"            => Array(ds["F"]),
+            "v"            => Array(ds["vpar_gradient_center_reduced"]),
+            "k_growth"     => Array(ds["k_growth"]),
+            "gamma_dfdvmax"=> Array(ds["gamma_dfdvmax"]),
+            "iv_dfdvmax"   => Array(ds["iv_dfdvmax"]),
+        )
     end
+psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data));
 
-    open(res_file, "w") do io
-        serialize(io, [tplot, h_atm, kmat])
-    end
-end
 
-io = open(res_file, "r")
+"""
+res_file2 = "/nfs/revontuli/data/oliver/LangmuirExcitation/AlfvenTrainPSD/PSD/psd/LE/143:161/kmat.bin"
+io = open(res_file2, "r")
 tplot, h_atm, kmat = deserialize(io)
 close(io)
+"""
+
+kmat = permutedims(psd.k_growth, (3, 2, 1))
+tplot = psd.t_run
+h_atm = psd.h_atm
 
 kmat[kmat .< klim/2] .= NaN
 tmat = ones(size(kmat)) .* tplot;
@@ -69,8 +41,10 @@ hmat = permutedims(permutedims(ones(size(kmat)), (2, 1, 3)) .* h_atm, (2, 1, 3))
 
 
 ##
+#using CairoMakie
+#CairoMakie.activate!()
 fig = Figure()
-sleep(1)
+sleep(2)
 ax = Axis3(fig[1, 1], 
     xlabel = "Time [s]", 
     ylabel = "wavenumber [m-1]",
@@ -81,14 +55,17 @@ sleep(1)
 scatter!(ax, tmat[.!isnan.(kmat)], kmat[.!isnan.(kmat)], hmat[.!isnan.(kmat)]/1e3, color =kmat[.!isnan.(kmat)])
 ax.azimuth = pi*1.1
 ax.elevation = pi*0.05
-
+#display(fig)
 ##
 
+"""
 io = open(res_file, "r")
 tplot, h_atm, kmat = deserialize(io)
 close(io)
+"""
 
 kmat[isnan.(kmat)] .= 0
+
 fig, ax, hm = heatmap(tplot, 
     h_atm/1e3, 
     dropdims(maximum(abs.(kmat), dims = 3), dims = 3),
