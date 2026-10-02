@@ -12,7 +12,7 @@ include("constants.jl")
 c = physical_constants
 
 ## define evaluation parameters
-showplots = false
+showplots = true
 it = 1030
 ih = 389
 
@@ -34,8 +34,8 @@ interval1 = 143:161
 interval2 = 292:310
 interval3 = 246:264
 
-#for interval in [interval1, interval2, interval3]
-    interval = interval3
+for interval in [interval1, interval2, interval3]
+    #interval = interval3
     save_dir_int = joinpath(save_dir, string(interval))
     load_files = files[interval]
 
@@ -127,23 +127,6 @@ interval3 = 246:264
     psd_grad = (psd..., v_middle = v_middle, dfpardvpar = dfpardvpar)
 
 
-    #showplots = true
-    if showplots
-        it = 1030
-        ih = 389
-
-        fig, ax, hm = plot_Fpar_frame(psd, it)
-        save(joinpath(save_dir_int, "example_F.jpg"), fig)
-
-
-        plot_Fpar_frame_sliders(psd, it)
-
-        t_range = : ;
-        t_range = 1100:1200 ;
-        make_movie(psd_grad, save_dir_int; t_range = t_range)
-
-    end
-
     #=
     @time dfpardvpar = stack(
         [gradient_simple(psd.vpar_centers, psd.F[:, ih, it])[2]
@@ -152,16 +135,6 @@ interval3 = 246:264
             ]
         );
     =#
-
-    if showplots
-        plot_suprathermal(v_middle)
-    end
-
-    if showplots
-        it = 1030
-        ih = 389
-        plot_thermal_suparthermal_gradient(psd_grad, ih, it)
-    end
 
     
     Ekin = E_ev(psd_grad.vpar_centers, c.me_ev)
@@ -347,12 +320,23 @@ interval3 = 246:264
     close(ds);
 
 
-    #if showplots
+    showplots = true
+    if showplots
+        fig, ax, hm = plot_Fpar_frame(psd_grad, it)
+        save(joinpath(save_dir_int, "example_F.jpg"), fig)
+        
         plot_Fpar_frame_sliders(psd_grad, it)
 
         fig, ax, hm = plot_dfdv(psd_grad, it)
-        
+       
+        t_range = : ;
+        t_range = 1100:1200 ;
+        make_movie(psd_grad, save_dir_int; t_range = t_range)
 
+
+        plot_suprathermal(v_middle)
+
+        plot_thermal_suparthermal_gradient(psd_grad, ih, it)
 
     end
 
@@ -369,3 +353,5 @@ end
 #   => realted: put gradient on a colorscale that is diverging from 0 (e.g. :bam), so 0 is easily found
 #       maybe the maximum detetction is ok, it's just that some maxima are below 0 and therefore not contributing to wave growth? double check
 # 5. add "if key exists in psd then draw that too"
+# 6. make nice x axis all the way through all plots (Energy and nsqrt)
+# 7. check thermal distribtution and cutoff energy
