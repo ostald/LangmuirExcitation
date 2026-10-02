@@ -10,6 +10,10 @@ function load_guisdap(matfile)
     Ti = guisdap_data["r_param"][:, 2]
     TeTi = guisdap_data["r_param"][:, 3]
     Te = TeTi .* Ti
+    # filter all electron densities smaller than 1e6, as they are apparently nonsense
+    ne[ne .<= 1e6] .= NaN
+    # also filter all electron temperatures smaller than 30K
+    Te[Te .<= 30] .= NaN
     gd = (ex_time = ex_time,
         h_param = h_param,
         Te = Te, 
@@ -19,7 +23,9 @@ end
 
 
 function average_guisdap(files, mode = "median")
-    # load several matfiles, averages over the contents
+    # load several matfiles, averages over the contents and produces median average deviation
+    # can do either mean or median
+
     gd = load_guisdap.(files)
     n_files = size(gd, 1)
     t_start = gd[1].ex_time[1, :]

@@ -30,10 +30,29 @@ function gradient_simple(x, y)
     return x_middle, gradient
 end
 
+ function smoothing_gradient(y, dx)
+        """
+        calculate gradient of discrete points in vector y with even spacing dx
+        using the neighbouring points one step up and down
+        assumes reasonably smooth data, very narrow extreme points will be missed.
+        y: vector
+        dx: difference 
+        """
+        y_ext = [y[1]; y ; y[end]]
+        grad = (y_ext[3:end] - y_ext[1:end-2]) / (2*dx)
+        return grad
+    end
+
 
 function E_ev(v_mps, m_ev)
     E = m_ev / 2 * v_mps .* abs.(v_mps) / c.c^2
     return E
+end
+
+function v_abs(E_ev, m_ev)
+#        E = m_ev / 2 * v_mps .* abs.(v_mps) / c.c^2
+    v_mps = (2 * E_ev / m_ev) ^(1/2) * c.c
+    return v_mps
 end
 
 function plasma_freq(ne, m_kg)
@@ -42,4 +61,11 @@ end
 
 function thermal_velocity(T, m)
     return sqrt(2*c.kb*T/m)
+end
+
+
+function maxwellian_fa(m, T, v)
+    #field-aligned maxwellian (3d maxwellian integrated over 2 dimensions)
+    kb = c.kb
+    return (m / (2 * pi * kb * T)) ^(1/2) .* exp.(-(m * (v .^2))/(2 * pi * kb * T))
 end

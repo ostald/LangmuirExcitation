@@ -3,10 +3,12 @@ using MAT
 using Serialization
 include("utils.jl")
 
-klim = (224e6 * 2 *pi)/3e8 *2
-
 dir = "results/143:161"
 res_file = joinpath(dir, "psd_le.nc")
+
+# the smallest visible wavenumber klim is determined by the radar frequency:
+radar_freq = 500e6 #Hz
+klim = (radar_freq * 2 *pi)/3e8
 
 @time psd_data = NCDataset(res_file, "r") do ds
         Dict{String, Any}(
@@ -34,10 +36,12 @@ close(io)
 kmat = permutedims(psd.k_growth, (3, 2, 1))
 tplot = psd.t_run
 h_atm = psd.h_atm
+gmat = permutedims(psd.gamma_dfdvmax, (3, 2, 1))
 
 kmat[kmat .< klim/2] .= NaN
 tmat = ones(size(kmat)) .* tplot;
 hmat = permutedims(permutedims(ones(size(kmat)), (2, 1, 3)) .* h_atm, (2, 1, 3));
+gmat[kmat .< klim/2] .= NaN
 
 
 ##
@@ -80,7 +84,22 @@ fig, ax, hm = heatmap(tplot,
     colorrange = (klim/2, maximum(kmat[:])),
     lowclip = "white",
     axis = (xlabel = "Time [s]",
-    ylabel = "Height [km]"),
+        ylabel = "Height [km]",
+        limits = ((9, 9.5), nothing),
+        ),
+    )
+Colorbar(fig[1, 2], hm, label = "k [m⁻¹]", )
+
+
+fig, ax, hm = heatmap(tplot, 
+    h_atm/1e3, 
+    dropdims(maximum(abs.(gmat), dims = 3), dims = 3),
+    colorrange = (klim/2, maximum(kmat[:])),
+    lowclip = "white",
+    axis = (xlabel = "Time [s]",
+        ylabel = "Height [km]",
+        limits = ((9, 9.5), nothing),
+        ),
     )
 Colorbar(fig[1, 2], hm, label = "k [m⁻¹]", )
 
