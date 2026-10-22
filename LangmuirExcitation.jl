@@ -1,9 +1,12 @@
 using MAT
 using DataInterpolations
 using Peaks
-using WGLMakie
+using CairoMakie
 using PCHIPInterpolation
 using Formatting
+
+#using WGLMakie
+#WGLMakie.activate!()
 
 include("load_guisdap.jl")
 include("utils.jl")
@@ -13,8 +16,7 @@ c = physical_constants
 
 ## define evaluation parameters
 showplots = true
-it = 1030
-ih = 389
+evaluate = true
 
 # output directory:
 save_dir = "/nfs/revontuli/data/oliver/LangmuirExcitation/results"
@@ -31,12 +33,22 @@ files = filter(x -> x[end-3:end] == ".mat", readdir(guisdap_dir))
 
 # 3 different time intervals of guisdap to try out:
 interval1 = 143:161
-interval2 = 292:310
-interval3 = 246:264
+interval2 = 246:264
+interval3 = 292:310
 
+
+if evaluate == true
 for interval in [interval1, interval2, interval3]
-    #interval = interval3
+#    interval = interval3
+    println("processing interval ", string(interval))
+    showplots = false
+
     save_dir_int = joinpath(save_dir, string(interval))
+    if !isdir(joinpath(save_dir_int))
+        println("Making directory ", save_dir_int)
+        mkdir(joinpath(save_dir_int))
+    end
+
     load_files = files[interval]
 
     if showplots
@@ -52,18 +64,18 @@ for interval in [interval1, interval2, interval3]
 
     ## guisdap data part
     #load guisdap data
+    println("Loading guisdap files")
     t_start, t_end, h_median, ne_median, Te_median, h_mad, ne_mad, Te_mad = 
         average_guisdap(joinpath.(guisdap_dir, load_files))
     gd = load_guisdap.(joinpath.(guisdap_dir, load_files))
 
     # load psd data
-    psd_data = load_psd(joinpath(psd_dir, psd_file))
-    psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data))
-    h_atm = psd.h_atm
+    println("Loading psd data")
+    psd = netCDF_to_namedTuple(joinpath(psd_dir, psd_file))
 
     #interpolate guisdap data to psd height resolution
-    ne_itp = Interpolator(h_median, ne_median).(h_atm)
-    Te_itp = Interpolator(h_median, Te_median).(h_atm)
+    ne_itp = Interpolator(h_median, ne_median).(psd.altitude)
+    Te_itp = Interpolator(h_median, Te_median).(psd.altitude)
 
     if showplots
         ne_gd = vcat([m.ne for m in gd]...)
@@ -79,7 +91,7 @@ for interval in [interval1, interval2, interval3]
         scatter!(ne_gd, h_gd, color = "black", alpha = 0.2, markersize = 3,
             label = "Measured")
 
-        lines!(ax, ne_itp, h_atm/1e3, linestyle = :dash, color = "orange",
+        lines!(ax, ne_itp, psd.altitude/1e3, linestyle = :dash, color = "orange",
             label = "Interp.")
         axislegend(ax)
         #display(fig)
@@ -99,7 +111,7 @@ for interval in [interval1, interval2, interval3]
         scatter!(Te_gd, h_gd, color = "black", alpha = 0.2, markersize = 3,
             label = "Measured")
 
-        lines!(ax, Te_itp, h_atm/1e3, linestyle = :dash, color = "orange",
+        lines!(ax, Te_itp, psd.altitude/1e3, linestyle = :dash, color = "orange",
             label = "Interp.")
         axislegend(ax)
         #display(fig)
@@ -112,89 +124,87 @@ for interval in [interval1, interval2, interval3]
 
 
     ## psd data part
+
+    #cut data where Energy is in thermal range and replace F'
+    E = E_ev(psd.vpar_centers, c.me_ev)
+    F_st = psd.F
+    F_st[abs.(E) .< 2, :, :] .= NaN 
+    psd = (psd..., F_st = F_st)
+
     # calculate gradient in parellel velocity 
-    @time dfpardvpar = stack(
-        [diff(psd.F[:, ih, it]) ./ diff(psd.vpar_centers)
-            for ih in eachindex(psd.h_atm),
-                it in eachindex(psd.t_run)
+    println("Calculating gradient")
+    dfpardvpar = stack(
+        [diff(psd.F_st[:, ih, it]) ./ diff(psd.vpar_centers)
+            for ih in eachindex(psd.altitude),
+                it in eachindex(psd.time)
         ]
-    );    
-    v_middle = psd.vpar_centers[1:end-1] .+ diff(psd.vpar_centers)/2
-    sign_v = sign.(v_middle)
-    sign_v[sign_v .== 0] .= 1
-    dfpardvpar = dfpardvpar .* sign_v
+    );   
 
-    psd_grad = (psd..., v_middle = v_middle, dfpardvpar = dfpardvpar)
-
-
-    #=
-    @time dfpardvpar = stack(
-        [gradient_simple(psd.vpar_centers, psd.F[:, ih, it])[2]
-            for ih in eachindex(psd.h_atm),
-                it in eachindex(psd.t_run[1:1000])
-            ]
-        );
-    =#
-
-    
-    Ekin = E_ev(psd_grad.vpar_centers, c.me_ev)
-    E    = E_ev(psd_grad.v_middle, c.me_ev)
+    v_dfdv      = psd.vpar_centers[1:end-1] .+ diff(psd.vpar_centers)/2
+    sign_v_dfdv = sign.(v_dfdv)
+    sign_v_dfdv[sign_v_dfdv .== 0] .= 1
+    dfpardvpar  = dfpardvpar .* sign_v_dfdv
+    E_kin       = E_ev(v_dfdv, c.me_ev)
 
 
     # select subset (between 3 and 200 eV)
-    grad = copy(dfpardvpar[abs.(E) .< 200, :, :])
-    v = v_middle[abs.(E) .< 200]
-    E    = E_ev(v, c.me_ev)
-    grad[abs.(E) .< 3, :, :] .= NaN
+    dfdv_s  = copy(dfpardvpar[abs.(E_kin) .< 200, :, :])
+    v_s     = v_dfdv[abs.(E_kin) .< 200]
+    E_kin_s = E_ev(v_s, c.me_ev)
+    dfdv_s[abs.(E_kin_s) .< 3, :, :] .= NaN
 
     #prepare for saving
-    dfdvmax = 0 ./zeros(size(grad));
-    iv_dfdvmax = copy(dfdvmax);
-    v_dfdvmax = copy(dfdvmax);
+    dfdvmax = 0 ./zeros(size(dfdv_s));
+    iv_growth = copy(dfdvmax);
+    v_growth = copy(dfdvmax);
     k_growth = copy(dfdvmax);
-    gamma_dfdvmax = copy(dfdvmax);
+    gamma_growth = copy(dfdvmax);
 
     ## mixed psd and guisdap evaluation
-    @time for it in axes(psd.t_run, 1)
-        for ih in axes(psd.h_atm, 1)
+    println("Evaluate excitation of Langmuir waves")
+    for it in axes(psd.time, 1)
+        for ih in axes(psd.altitude, 1)
             showplots = false
             #ih = 395
             #it = 2
-            iv_max, h_dfdv_max = findmaxima(grad[:, ih, it])
+            iv_max, h_dfdv_max = findmaxima(dfdv_s[:, ih, it])
 
             #filter for h_dfdv_max larger than 0 (i.e. positive gradient)
             iv_max = iv_max[h_dfdv_max .> 0]
             h_dfdv_max = h_dfdv_max[h_dfdv_max .> 0]
 
-            v_max = v[iv_max]
+            v_max = v_s[iv_max]
 
             if showplots    
-                    lines(E, grad[:, ih, it])
+                    lines(E_kin_s, dfdv_s[:, ih, it])
             end
             if showplots
-                    fig, ax, hm = heatmap(E, psd.h_atm/1e3, grad[:, :, it],
+                    fig, ax, hm = heatmap(E_kin_s, psd.altitude/1e3, dfdv_s[:, :, it],
                         colorrange = (-1e-7, 1e-7),)
                     xlims!(-200, 200)
                     Colorbar(fig[1, 2], hm)
                     display(fig)
             end
             if showplots
-                fig, ax, lin = lines(E, grad[:, ih, it])
-                scatter!(E[iv_max], h_dfdv_max)
+                fig, ax, lin = lines(E_kin_s, dfdv_s[:, ih, it])
+                scatter!(E_kin_s[iv_max], h_dfdv_max)
                 ylims!(-1e-6, 1e-6)
                 display(fig)
             end
 
             dfdvmax[iv_max, ih, it] = h_dfdv_max
-            iv_dfdvmax[iv_max, ih, it] = iv_max
-            v_dfdvmax[iv_max, ih, it] = v_max
+            iv_growth[iv_max, ih, it] = iv_max
+            v_growth[iv_max, ih, it] = v_max
 
             k_g = wp[ih] ./ sqrt.(v_max.^2 .- 3/2*vth[ih] .^2)
             w_g = k_g .* v_max
             gamma = pi * wp[ih] .^2 ./ k_g .^2 .* h_dfdv_max
+            #growth rate formula see eg.
+            # Bump-on-tail instability in space plasmas
+            # Susmita Sarkar ; Samit Paul; Raicharan Denra
 
             k_growth[iv_max, ih, it] = k_g
-            gamma_dfdvmax[iv_max, ih, it] = gamma
+            gamma_growth[iv_max, ih, it] = gamma
             # what about w_g, what is it used for?
 
             #im = 3
@@ -204,154 +214,176 @@ for interval in [interval1, interval2, interval3]
         end
     end
 
-    if false #old code, incompatible now
-            showplots = true
-            #plotting gradiend dfdv heatmap, superimposed with scatter of where dfdv has a maximum
-            if showplots
-                fig, ax, hm = heatmap(E, 
-                    psd.h_atm/1e3, 
-                    grad[:, :, it], 
-                    colorrange = (-1e-7, 1e-7),
-                    )
-                xlims!(-200, 200)
-                Colorbar(fig[1, 2], hm, label = "df∥/d|v|∥")
-                E_profiles = E_ev.(v_dfdvmax[:, it], c.me_ev)
-                nmax = maximum(length.(E_profiles[:]))
-                E_mat = stack(rpad_array.(E_profiles, nmax, NaN))
-                [scatter!(Ep, psd.h_atm/1e3, marker = 'x', color = "black") for Ep in eachrow(E_mat)]
-                display(fig)
-            end
 
-            #plotting phase space F heatmap, superimposed with scatter of where dfdv has a maximum
-            if showplots
-                fig, ax, hm = heatmap(Ekin, 
-                    psd.h_atm/1e3, 
-                    psd.F[:, :, it], 
-                    colorrange = (1e-2, 1e0),
-                    #colorrange = (1e24, 1e26), 
-                    colorscale = log10,
-                )
-                xlims!(-200, 200)
-                Colorbar(fig[1, 2], hm, label = "f∥")
-                E_profiles = E_ev.(v_dfdvmax[:, it], c.me_ev)
-                nmax = maximum(length.(E_profiles[:]))
-                E_mat = stack(rpad_array.(E_profiles, nmax, NaN))
-                [scatter!(Ep, psd.h_atm/1e3, marker = 'x') for Ep in eachrow(E_mat)]
-                display(fig)
-            end
-
-            # intersection of langmuir dispersion relation and ??
-            if showplots
-                ih = 370
-                vmax = v_dfdvmax[ih, it][1]
-                vth_ = vth[ih]
-                wp_ = wp[ih]
-                k = -2000:2000
-                fig, ax, lin = lines(k, k*vmax)
-                lines!(k, sqrt.(wp_.^2 .+ 3/2*vth_.^2 .*k.^2))
-                display(fig)
-            end
-
-            #solve for k and omega
-            #k^2 vmax^2 .- 3/2*vth.^2*k.^2 3/2 = wp^2
-            #k^2 = wp^2 / (vmax^2 .- 3/2*vth.^2)
-            k_growth = wp[ih] / sqrt(vmax^2 - 3/2*vth[ih]^2)
-            w_growth = k_growth * vmax
-
-            #growth rate!
-            #double check!!
-            gamma = pi * wp[ih]^2 / k_growth^2 * dfdvmax[ih, it]
-
-            #check with eiscat wavenumber
-    end
-
-    # save results in struct for easy saving
-    # (not used with nc files)
-    psd_data["v"] = v
-    psd_data["k_growth"] = k_growth
-    psd_data["v_dfdvmax"] = v_dfdvmax
-    psd_data["gamma_dfdvmax"] = gamma_dfdvmax
-    psd_data["iv_dfdvmax"] = iv_dfdvmax
-
-    #psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data))
-
-    #psd_data
-    psd_grad = (psd...,
-        v_middle = v_middle, 
+    # save results in named tuple for easy access
+    psd_le = (psd...,
+        v_dfdv = v_dfdv, 
         dfpardvpar = dfpardvpar,
-        grad = grad,
-        v = v,
-        E = E,
+        dfdv_s = dfdv_s,
+        v_s = v_s,
+        E_kin_s = E_kin_s,
         dfdvmax = dfdvmax,  
-        iv_dfdvmax = iv_dfdvmax,
-        v_dfdvmax = v_dfdvmax,
+        iv_growth = iv_growth,
+        v_growth = v_growth,
         k_growth = k_growth,
-        gamma_dfdvmax = gamma_dfdvmax,
+        gamma_growth = gamma_growth,
         )
 
 
+    
     ## save output
+    println("saving")
     # 2. copy psd to psd_les
-    if !isdir(joinpath(save_dir_int))
-        mkdir(joinpath(save_dir_int))
-    end
     run(`cp -f $(joinpath(save_dir, psd_file)) $(joinpath(save_dir_int, "psd_le.nc"))`)
 
     # 3. modify contents
     ds = NCDataset(joinpath(save_dir_int, "psd_le.nc"), "a")
 
-    defDim(ds, "vpar_grad_red", length(v))
-    vp_gc_r = defVar(ds, "vpar_gradient_center_reduced", Float64, ("vpar_grad_red",);
-                attrib=["units" => "m s-1", "long_name" => "v_parallel bin centers of gradient reduced"])
-    vp_gc_r[:] = v
-    
-    v_k_growth = defVar(ds, "k_growth", Float64, ("vpar_grad_red", "altitude", "time"),
-        attrib=["units" => "m-1", "long_name" => "magnitude of k vector"])
-    v_k_growth[:] = k_growth[:]
-    
-    v_gamma_dfdvmax = defVar(ds, "gamma_dfdvmax", Float64, ("vpar_grad_red", "altitude", "time"),
-        attrib=["units" => "m-2 s-1 (?)", "long_name" => "growth rate"])
-    v_gamma_dfdvmax[:] = gamma_dfdvmax[:]
+    defDim(ds, "vpar_dfdv_s", length(v_s))
 
-    v_iv_dfdvmax_ = defVar(ds, "iv_dfdvmax", Float64, ("vpar_grad_red", "altitude", "time"),
+    vp_gc_r = defVar(ds, "v_s", Float64, ("vpar_dfdv_s",);
+                attrib=["units" => "m s-1", "long_name" => "v_parallel bin centers of gradient reduced"])
+    vp_gc_r[:] = v_s
+
+    ncvar_dfdv_s = defVar(ds, "dfdv_s", Float64, ("vpar_dfdv_s", "altitude", "time"),
+                attrib=["units" => "s2 m-5", "long_name" => "gradient dF_par/dv_par"])
+    ncvar_dfdv_s[:] = dfdv_s
+    
+    ncvar_k_growth = defVar(ds, "k_growth", Float64, ("vpar_dfdv_s", "altitude", "time"),
+        attrib=["units" => "m-1", "long_name" => "magnitude of k vector"])
+    ncvar_k_growth[:] = k_growth[:]
+    
+    ncvar_gamma_growth = defVar(ds, "gamma_growth", Float64, ("vpar_dfdv_s", "altitude", "time"),
+        attrib=["units" => "m-3", "long_name" => "growth rate"])
+    ncvar_gamma_growth[:] = gamma_growth[:]
+
+    ncvar_iv_growth = defVar(ds, "iv_growth", Float64, ("vpar_dfdv_s", "altitude", "time"),
         attrib=["long_name" => "index of maximum dF_par/dv_par"])
-    v_iv_dfdvmax_[:] = iv_dfdvmax[:]
+    ncvar_iv_growth[:] = iv_growth[:]
 
     close(ds);
 
+end
+end
 
+
+
+#if showplots == true
+println("Evaluation finished, starting plotting")
+
+
+# output directory:
+save_dir = "/nfs/revontuli/data/oliver/LangmuirExcitation/results"
+
+# 3 different time intervals of guisdap to try out:
+interval1 = 143:161
+interval2 = 246:264
+interval3 = 292:310
+
+radar_freq = 500e6 #Hz
+klim = (radar_freq * 2 *pi)/c.c
+
+
+for interval in [interval1, interval2, interval3]
+#if true
+    #interval = interval1
+    println("processing interval ", string(interval))
+    save_dir_int = joinpath(save_dir, string(interval))
+
+    #psd = netCDF_to_namedTuple(joinpath(save_dir, "psd.nc"))
+    #psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data))
+
+    println("loading netcdf file")
+    psd = netCDF_to_namedTuple(joinpath(save_dir_int, "psd_le.nc"))
+    #psd_le = NamedTuple{Tuple(Symbol(k) for k in keys(ds))}(Array(ds[k]) for k in keys(ds))
+    #close(ds);
+
+    E = E_ev(psd.vpar_centers, c.me_ev)
+    F_st = psd.F
+    F_st[abs.(E) .< 2, :, :] .= NaN 
+    psd = (psd..., F_st = F_st)
+
+    println("Calculating df/dv")
+    #reconstruct some variables
+    dfpardvpar = stack(
+        [diff(psd.F[:, ih, it]) ./ diff(psd.vpar_centers)
+            for ih in eachindex(psd.altitude),
+                it in eachindex(psd.time)
+        ]
+    );
+
+    v_dfdv      = psd.vpar_centers[1:end-1] .+ diff(psd.vpar_centers)/2
+    sign_v_dfdv = sign.(v_dfdv)
+    sign_v_dfdv[sign_v_dfdv .== 0] .= 1
+    dfpardvpar  = dfpardvpar .* sign_v_dfdv
+    E_kin       = E_ev(v_dfdv, c.me_ev)
+    E_kin_s     = E_ev(psd.v_s, c.me_ev)
+
+
+    #psd2 = merge(psd, psd_le)
+    psd_le = (psd...,
+        v_dfdv = v_dfdv,
+        dfpardvpar = dfpardvpar, 
+        E_kin_s = E_kin_s,
+        )
+
+    println("plotting")
     showplots = true
-    if showplots
-        fig, ax, hm = plot_Fpar_frame(psd_grad, it)
-        save(joinpath(save_dir_int, "example_F.jpg"), fig)
+#    if showplots
+        it = 1030
+        ih = 389
+
+
+        fig, ax, hm = plot_Fpar_frame(psd_le, it)
+        save(joinpath(save_dir_int, "example_F.png"), fig)
         
-        plot_Fpar_frame_sliders(psd_grad, it)
+        plot_Fpar_frame_sliders(psd_le, it)
 
-        fig, ax, hm = plot_dfdv(psd_grad, it)
-       
+        fig, ax, hm = plot_dfdv(psd_le, it)
+        save(joinpath(save_dir_int, "dfdv.png"), fig)
+
         t_range = : ;
-        t_range = 1100:1200 ;
-        make_movie(psd_grad, save_dir_int; t_range = t_range)
+        #t_range = 1100:1200 ;
+        make_movie(psd_le, save_dir_int; t_range = t_range)
 
+        v_dfdv      = psd.vpar_centers[1:end-1] .+ diff(psd.vpar_centers)/2
+        #plot_suprathermal(v_dfdv)
 
-        plot_suprathermal(v_middle)
+        fig, ax, ln = plot_thermal_suparthermal_gradient(psd_le, ih, it)
+        save(joinpath(save_dir_int, "thermal_suparthermal_gradient.png"), fig)
 
-        plot_thermal_suparthermal_gradient(psd_grad, ih, it)
+        fig, ax, hm = plot_k_hm(psd_le, it, klim)
+        save(joinpath(save_dir_int, "k_vs_v_and_h_hm.png"), fig)
 
-    end
+        fig, ax, sc = plot_k_scatter(psd_le, it, klim)
+        save(joinpath(save_dir_int, "k_h.png"), fig)
+
+        fig, ax, hm = k_t_h(psd_le, klim)
+        save(joinpath(save_dir_int, "k_t_h.png"), fig)
+        #make it interactive!!
+
+        fig, ax, hm = g_t_h(psd_le)
+        save(joinpath(save_dir_int, "g_t_h.png"), fig)
+
+  #  end
 
 end
+end
+
+
 
 
 # to do:
 # 1. also save guisdap data in nc file
 # 2. restrict velocity/energy interval from the beginning?
-#   => related: only save dfpardvpar for small velocities? ie only grad
-#   => related: rename grad
+#   => related: only save dfpardvpar for small velocities? ie only grad? yes!!
 # 3. add timestamp to all plots that need it
 # 4. check maximum detection. looks iffy
-#   => realted: put gradient on a colorscale that is diverging from 0 (e.g. :bam), so 0 is easily found
+#   => related: put gradient on a colorscale that is diverging from 0 (e.g. :bam), so 0 is easily found
 #       maybe the maximum detetction is ok, it's just that some maxima are below 0 and therefore not contributing to wave growth? double check
 # 5. add "if key exists in psd then draw that too"
 # 6. make nice x axis all the way through all plots (Energy and nsqrt)
 # 7. check thermal distribtution and cutoff energy
+# 8. make k number plot
+# 9. plot_k_scatter: plot all available k, not just maximum
+#10. mask out 3eV threshold for low energy

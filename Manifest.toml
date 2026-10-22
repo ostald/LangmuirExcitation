@@ -2,7 +2,7 @@
 
 julia_version = "1.12.5"
 manifest_format = "2.0"
-project_hash = "aaa15eaf675ce62233b5c5b51062d2e55a0c72ee"
+project_hash = "0365ccc96fc1f024514113b6f18eee665632653f"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1339,6 +1339,22 @@ deps = ["OpenLibm_jll"]
 git-tree-sha1 = "dbd2e8cd2c1c27f0b584f6661b4309609c5a685e"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "1.1.4"
+
+[[deps.NaNStatistics]]
+deps = ["PrecompileTools"]
+git-tree-sha1 = "70dad0f7b1b11751a5e04ddada2bfcda9dc1b64e"
+uuid = "b946abbf-3ea7-4610-9019-9858bfdeaf2d"
+version = "0.6.60"
+
+    [deps.NaNStatistics.extensions]
+    NaNStatisticsDimensionalDataExt = "DimensionalData"
+    NaNStatisticsHwlocExt = "Hwloc"
+    NaNStatisticsUnitfulExt = "Unitful"
+
+    [deps.NaNStatistics.weakdeps]
+    DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
+    Hwloc = "0e44f5e4-bd66-52a0-8798-143a42290a1d"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.NetCDF_jll]]
 deps = ["Artifacts", "Blosc_jll", "Bzip2_jll", "HDF5_jll", "JLLWrappers", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPIABI_jll", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "TOML", "XML2_jll", "Zlib_jll", "Zstd_jll", "libaec_jll", "libzip_jll"]

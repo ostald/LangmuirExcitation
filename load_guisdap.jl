@@ -4,7 +4,7 @@ function load_guisdap(matfile)
     #loads one singe matfile
     guisdap_data = matread(matfile)
     ex_time = guisdap_data["r_time"]
-    println(ex_time)
+    #println(ex_time)
     h_param = dropdims(guisdap_data["r_h"], dims = 2)*1000
     ne = guisdap_data["r_param"][:, 1]
     Ti = guisdap_data["r_param"][:, 2]

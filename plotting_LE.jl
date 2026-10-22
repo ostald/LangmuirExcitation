@@ -17,10 +17,10 @@ klim = (radar_freq * 2 *pi)/3e8
             #"vpar_centers" => Array(ds["vpar_centers"]),
             #"vpar_edges"   => Array(ds["vpar_edges"]),
             #"F"            => Array(ds["F"]),
-            "v"            => Array(ds["vpar_gradient_center_reduced"]),
+            "v"            => Array(ds["v_s"]),
             "k_growth"     => Array(ds["k_growth"]),
-            "gamma_dfdvmax"=> Array(ds["gamma_dfdvmax"]),
-            "iv_dfdvmax"   => Array(ds["iv_dfdvmax"]),
+            "gamma_dfdvmax"=> Array(ds["gamma_growth"]),
+            "iv_dfdvmax"   => Array(ds["iv_growth"]),
         )
     end
 psd = NamedTuple{Tuple(Symbol(k) for k in keys(psd_data))}(values(psd_data));
@@ -76,7 +76,25 @@ fig, ax, hm = heatmap(tplot,
     axis = (xlabel = "Time [s]",
     ylabel = "Height [km]"),
     )
-Colorbar(fig[1, 2], hm, label = "k [m⁻¹]")
+cb = Colorbar(fig[1, 2], hm, label = "k [m⁻¹]")
+
+s = cb.limits[]
+clay = Makie.get_layout!(fig[1,2])
+cbbox = clay.layoutobservables.computedbbox
+top_axis = Axis(fig, bbox = cbbox)
+xlims!(top_axis, 0, 1)
+ylims!(top_axis, clims...)
+hidedecorations!(top_axis)
+hidespines!(top_axis)
+
+Colorbar(fig[1,2]; colorrange, ...)
+
+	Axis(fig[1,2], limits=(0..1, cb.colorrange))
+	hidedecorations!()
+hlines!(top_axis, klim; color = :red, linewidth = 5)
+
+
+
 
 fig, ax, hm = heatmap(tplot, 
     h_atm/1e3, 
@@ -85,7 +103,7 @@ fig, ax, hm = heatmap(tplot,
     lowclip = "white",
     axis = (xlabel = "Time [s]",
         ylabel = "Height [km]",
-        limits = ((9, 9.5), nothing),
+        #limits = ((9, 9.5), nothing),
         ),
     )
 Colorbar(fig[1, 2], hm, label = "k [m⁻¹]", )

@@ -21,6 +21,15 @@ function load_psd(ncfile)
     end
 end
 
+
+function netCDF_to_namedTuple(ncfile)
+    #loads a netCDF file and returns a named tuple
+    ds = NCDataset(ncfile, "r")
+    data = NamedTuple{Tuple(Symbol(k) for k in keys(ds))}(Array(ds[k]) for k in keys(ds))
+    close(ds);
+    return data
+end
+
 function gradient_simple(x, y)
     # simple nearest neighbour gradient for 
     # arguments: x: independent variable data points, y = f(x) with df/dx being the gradient
