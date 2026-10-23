@@ -330,7 +330,7 @@ function make_movie(psd_grad, save_dir_int; t_range = :)
         E_ev(psd_grad.v_s, c.me_ev),
         psd_grad.altitude/1e3, 
         k1,
-        colorrange = (0, nanmaximum(psd_grad.k_growth)/2),
+        colorrange = (0, nanmaximum(psd_grad.k_growth)),
         axis = (xlabel = L"\mathrm{v_{\parallel} \; [eV]}",
             ylabel = "Height [km]",
             xscale = nsqrt,
@@ -387,6 +387,7 @@ function plot_k_hm(psd_grad, it, klim)
         E_ev(psd_grad.v_s, c.me_ev),
         psd_grad.altitude/1e3, 
         psd_grad.k_growth[:, :, it],
+        colorrange = (0, nanmaximum(psd_grad.k_growth)),
         axis = (xlabel = L"\mathrm{v_{\parallel} \; [eV]}",
             ylabel = "Height [km]",
             xscale = nsqrt,
@@ -431,7 +432,7 @@ function plot_histogram_growth_log(psd_le)
     g_no_nan = psd_le.gamma_growth[.!isnan.(psd_le.gamma_growth)]
     
     #=
-    fig, ax, hist = WGLMakie.hist(g_no_nan, bins = 20,
+    fig, ax, hist = cm.hist(g_no_nan, bins = 20,
         axis = (
             ylabel = "Counts",
             xlabel = "Growth Rate ",
@@ -441,7 +442,7 @@ function plot_histogram_growth_log(psd_le)
         ),
     )
 
-    ax2, hist2 = WGLMakie.hist(fig[1, 2], g_no_nan, bins = 20,
+    ax2, hist2 = cm.hist(fig[1, 2], g_no_nan, bins = 20,
         label = "the first bar should extend to 0",
         axis = (
             ylabel = "Counts",
@@ -456,7 +457,7 @@ function plot_histogram_growth_log(psd_le)
     axislegend(ax2)
     =#
 
-    fig, ax, hist = WGLMakie.hist(log10.(g_no_nan), bins = 100,
+    fig, ax, hist = cm.hist(log10.(g_no_nan), bins = 100,
         axis = (
             ylabel = "Counts",
             xlabel = "Growth Rate [m⁻³]",
@@ -467,7 +468,7 @@ function plot_histogram_growth_log(psd_le)
         ),
     )
 
-    ax4, hist4 = WGLMakie.hist(fig[2, 1], log10.(g_no_nan[g_no_nan .> 1e-5]), bins = 100,
+    ax4, hist4 = cm.hist(fig[2, 1], log10.(g_no_nan[g_no_nan .> 1e-5]), bins = 100,
         axis = (
             ylabel = "Counts",
             xlabel = "Growth Rate [m⁻³]",
@@ -479,7 +480,7 @@ function plot_histogram_growth_log(psd_le)
     )
 
     #=
-    WGLMakie.hist(log10.(g_no_nan[g_no_nan .> 1e-5]), bins = 80,
+    cm.hist(log10.(g_no_nan[g_no_nan .> 1e-5]), bins = 80,
         axis = (
             ylabel = "Counts",
             xlabel = "Growth Rate [m⁻³]",

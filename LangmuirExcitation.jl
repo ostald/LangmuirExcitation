@@ -5,8 +5,11 @@ using CairoMakie
 using PCHIPInterpolation
 using Formatting
 
+cm = CairoMakie
+
 #using WGLMakie
 #WGLMakie.activate!()
+#cm = WGLMakie
 
 include("load_guisdap.jl")
 include("utils.jl")
@@ -16,7 +19,7 @@ c = physical_constants
 
 ## define evaluation parameters
 showplots = true
-evaluate = true
+evaluate = false
 
 # output directory:
 save_dir = "/nfs/revontuli/data/oliver/LangmuirExcitation/results"
@@ -39,9 +42,9 @@ interval3 = 292:310
 
 if evaluate == true
 for interval in [interval1, interval2, interval3]
-#    interval = interval3
+    #interval = interval1
     println("processing interval ", string(interval))
-    showplots = false
+    #showplots = false
 
     save_dir_int = joinpath(save_dir, string(interval))
     if !isdir(joinpath(save_dir_int))
@@ -59,7 +62,7 @@ for interval in [interval1, interval2, interval3]
         fig, ax, ln = plot_ne_profile(ne, h_param/1e3, 
             title_add = parse_ex_time(ex_time)
         )
-        save(joinpath(save_dir_int, "ne_profile.jpg"), fig)
+        save(joinpath(save_dir_int, "ne_profile.png"), fig)
     end
 
     ## guisdap data part
@@ -86,7 +89,7 @@ for interval in [interval1, interval2, interval3]
             title_add = "\n"*parse_ex_time(gd[1].ex_time) 
                 * " | " * parse_ex_time(gd[end].ex_time)
             )
-        save(joinpath(save_dir_int, "median_ne_density.jpg"), fig)
+        save(joinpath(save_dir_int, "median_ne_density.png"), fig)
                         
         scatter!(ne_gd, h_gd, color = "black", alpha = 0.2, markersize = 3,
             label = "Measured")
@@ -106,7 +109,7 @@ for interval in [interval1, interval2, interval3]
             title_add = "\n"*parse_ex_time(gd[1].ex_time) 
                 * " | " * parse_ex_time(gd[end].ex_time)
             )
-        save(joinpath(save_dir_int, "median_Te_density.jpg"), fig)
+        save(joinpath(save_dir_int, "median_Te_density.png"), fig)
         
         scatter!(Te_gd, h_gd, color = "black", alpha = 0.2, markersize = 3,
             label = "Measured")
@@ -166,7 +169,7 @@ for interval in [interval1, interval2, interval3]
         for ih in axes(psd.altitude, 1)
             showplots = false
             #ih = 395
-            #it = 2
+            #it = 1032
             iv_max, h_dfdv_max = findmaxima(dfdv_s[:, ih, it])
 
             #filter for h_dfdv_max larger than 0 (i.e. positive gradient)
@@ -174,6 +177,16 @@ for interval in [interval1, interval2, interval3]
             h_dfdv_max = h_dfdv_max[h_dfdv_max .> 0]
 
             v_max = v_s[iv_max]
+
+            ##try new evaluation 
+            dd = dfdv_s[:, ih, it]
+            h_dfdv_max = dd[dd .> 0]
+            iv_max = findall(in(h_dfdv_max), dd)
+
+            #dd[iv_max] == h_dfdv_max #true, all good
+            v_max = v_s[iv_max]
+
+            ##
 
             if showplots    
                     lines(E_kin_s, dfdv_s[:, ih, it])
@@ -266,19 +279,11 @@ for interval in [interval1, interval2, interval3]
 end
 end
 
+println("Evaluation finished")
 
 
-#if showplots == true
-println("Evaluation finished, starting plotting")
-
-
-# output directory:
-save_dir = "/nfs/revontuli/data/oliver/LangmuirExcitation/results"
-
-# 3 different time intervals of guisdap to try out:
-interval1 = 143:161
-interval2 = 246:264
-interval3 = 292:310
+if showplots == true
+println("Starting plotting")
 
 radar_freq = 500e6 #Hz
 klim = (radar_freq * 2 *pi)/c.c
@@ -328,8 +333,7 @@ for interval in [interval1, interval2, interval3]
         )
 
     println("plotting")
-    showplots = true
-#    if showplots
+
         it = 1030
         ih = 389
 
@@ -341,10 +345,6 @@ for interval in [interval1, interval2, interval3]
 
         fig, ax, hm = plot_dfdv(psd_le, it)
         save(joinpath(save_dir_int, "dfdv.png"), fig)
-
-        t_range = : ;
-        #t_range = 1100:1200 ;
-        make_movie(psd_le, save_dir_int; t_range = t_range)
 
         v_dfdv      = psd.vpar_centers[1:end-1] .+ diff(psd.vpar_centers)/2
         #plot_suprathermal(v_dfdv)
@@ -365,7 +365,13 @@ for interval in [interval1, interval2, interval3]
         fig, ax, hm = g_t_h(psd_le)
         save(joinpath(save_dir_int, "g_t_h.png"), fig)
 
-  #  end
+        fig = plot_histogram_growth_log(psd_le)
+        save(joinpath(save_dir_int, "hist_growth_rates.png"), fig)
+
+        t_range = : ;
+        #t_range = 1100:1200 ;
+        make_movie(psd_le, save_dir_int; t_range = t_range)
+
 
 end
 end
@@ -384,6 +390,4 @@ end
 # 5. add "if key exists in psd then draw that too"
 # 6. make nice x axis all the way through all plots (Energy and nsqrt)
 # 7. check thermal distribtution and cutoff energy
-# 8. make k number plot
 # 9. plot_k_scatter: plot all available k, not just maximum
-#10. mask out 3eV threshold for low energy
